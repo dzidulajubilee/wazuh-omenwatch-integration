@@ -1,0 +1,10 @@
+#!/bin/sh
+# Wazuh runs /var/ossec/integrations/custom-pantomath for each alert that
+# matches its <integration> block. This wrapper starts custom-pantomath.py
+# with the Python that ships with the Wazuh manager, the same way Wazuh's
+# own integrations (virustotal, slack...) are started.
+WPYTHON_BIN="framework/python/bin/python3"
+DIR_NAME="$(cd "$(dirname "$0")" && pwd -P)"
+SCRIPT_NAME="$(basename "$0")"
+WAZUH_PATH="${WAZUH_PATH:-$(cd "${DIR_NAME}/.." && pwd)}"
+exec "${WAZUH_PATH}/${WPYTHON_BIN}" "${DIR_NAME}/${SCRIPT_NAME}.py" "$@"
