@@ -1,0 +1,75 @@
+<!--
+  OmenWatch IOC matches in Wazuh. Copy to /var/ossec/etc/rules/omenwatch_rules.xml
+  (owner wazuh:wazuh, mode 660) and restart the manager.
+
+  100800-100809: events sent back by the custom-omenwatch integration
+  100810-100819: matches against the OmenWatch CDB lists (README.md, section 6)
+  Change the IDs if they clash with your own local rules.
+-->
+<group name="omenwatch,threat_intel,">
+
+  <!-- Every event from the integration. -->
+  <rule id="100800" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="integration">^omenwatch$</field>
+    <description>OmenWatch IOC lookup</description>
+    <options>no_full_log</options>
+  </rule>
+
+  <rule id="100801" level="12">
+    <if_sid>100800</if_sid>
+    <field name="omenwatch.found">^1$</field>
+    <field name="omenwatch.confidence" type="pcre2">^(?:[89]\d|100)$</field>
+    <description>OmenWatch: $(omenwatch.value) in $(omenwatch.field) is a known $(omenwatch.threat_type) indicator ($(omenwatch.malware)), confidence $(omenwatch.confidence)</description>
+    <options>no_full_log</options>
+    <group>omenwatch_match,omenwatch_high,</group>
+  </rule>
+
+  <rule id="100802" level="10">
+    <if_sid>100800</if_sid>
+    <field name="omenwatch.found">^1$</field>
+    <field name="omenwatch.confidence" type="pcre2">^[5-7]\d$</field>
+    <description>OmenWatch: $(omenwatch.value) in $(omenwatch.field) is a known $(omenwatch.threat_type) indicator ($(omenwatch.malware)), confidence $(omenwatch.confidence)</description>
+    <options>no_full_log</options>
+    <group>omenwatch_match,</group>
+  </rule>
+
+  <rule id="100803" level="6">
+    <if_sid>100800</if_sid>
+    <field name="omenwatch.found">^1$</field>
+    <description>OmenWatch: $(omenwatch.value) in $(omenwatch.field) matches a low-confidence indicator ($(omenwatch.confidence))</description>
+    <options>no_full_log</options>
+    <group>omenwatch_match,omenwatch_low,</group>
+  </rule>
+
+  <rule id="100804" level="3">
+    <if_sid>100800</if_sid>
+    <field name="omenwatch.found">^0$</field>
+    <field name="omenwatch.error">\.+</field>
+    <description>OmenWatch integration error: $(omenwatch.description)</description>
+    <options>no_full_log</options>
+    <group>omenwatch_error,</group>
+  </rule>
+
+  <!--
+    Optional: matches against the CDB lists made from /api/v1/export?format=cdb
+    (README.md, section 6, explains the sync). Uncomment the ones whose lists you
+    declare in ossec.conf. They check any decoded alert with a source or
+    destination IP; the list value is the indicator's confidence.
+
+  <rule id="100810" level="12">
+    <if_level>3</if_level>
+    <list field="srcip" lookup="address_match_key">etc/lists/omenwatch-ip</list>
+    <description>OmenWatch CDB: source IP $(srcip) is a known indicator</description>
+    <group>omenwatch_match,omenwatch_cdb,</group>
+  </rule>
+
+  <rule id="100811" level="12">
+    <if_level>3</if_level>
+    <list field="dstip" lookup="address_match_key">etc/lists/omenwatch-ip</list>
+    <description>OmenWatch CDB: destination IP $(dstip) is a known indicator</description>
+    <group>omenwatch_match,omenwatch_cdb,</group>
+  </rule>
+  -->
+
+</group>

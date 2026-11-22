@@ -1,18 +1,18 @@
-# Pantomath integration for Wazuh: checks the IP addresses, domains, URLs,
-# hashes and email senders in Wazuh alerts against Pantomath's IOC database,
+# OmenWatch integration for Wazuh: checks the IP addresses, domains, URLs,
+# hashes and email senders in Wazuh alerts against OmenWatch's IOC database,
 # and sends every match back into Wazuh as its own event, which the
-# rules in pantomath_rules.xml turn into an alert.
+# rules in omenwatch_rules.xml turn into an alert.
 #
 # Install on the Wazuh manager (see README.md, section 5):
-#   /var/ossec/integrations/custom-pantomath       (the wrapper, root:wazuh 750)
-#   /var/ossec/integrations/custom-pantomath.py    (this file, root:wazuh 750)
-#   /var/ossec/etc/rules/pantomath_rules.xml
+#   /var/ossec/integrations/custom-omenwatch       (the wrapper, root:wazuh 750)
+#   /var/ossec/integrations/custom-omenwatch.py    (this file, root:wazuh 750)
+#   /var/ossec/etc/rules/omenwatch_rules.xml
 #
 # ossec.conf:
 #   <integration>
-#     <name>custom-pantomath</name>
-#     <hook_url>https://pantomath.example</hook_url>   <!-- Pantomath's address -->
-#     <api_key>pms_...</api_key>                        <!-- a SIEM key: Pantomath, Settings, Security -->
+#     <name>custom-omenwatch</name>
+#     <hook_url>https://omenwatch.example</hook_url>   <!-- OmenWatch's address -->
+#     <api_key>pms_...</api_key>                        <!-- a SIEM key: OmenWatch, Settings, Security -->
 #     <group>web,sysmon,ids,firewall,syscheck</group>   <!-- which alerts to check -->
 #     <alert_format>json</alert_format>
 #     <options>{"min_confidence": 50}</options>          <!-- optional, see OPTIONS below -->
@@ -20,7 +20,7 @@
 #
 # Only Python's standard library is used, so it runs on the Python that
 # ships with the Wazuh manager. Wazuh calls it as (integratord):
-#   custom-pantomath <alert file> <api_key> <hook_url> <"debug" or ""> <options file or ""> <timeout> <retries>
+#   custom-omenwatch <alert file> <api_key> <hook_url> <"debug" or ""> <options file or ""> <timeout> <retries>
 
 import ipaddress
 import json
@@ -33,16 +33,16 @@ import urllib.error
 import urllib.request
 from socket import AF_UNIX, SOCK_DGRAM, socket
 
-NAME = "pantomath"
+NAME = "omenwatch"
 WAZUH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 LOG_FILE = f"{WAZUH}/logs/integrations.log"
 SOCKET_ADDR = f"{WAZUH}/queue/sockets/queue"
-MAX_VALUES = 100                  # per alert; Pantomath accepts up to 1,000 per request
+MAX_VALUES = 100                  # per alert; OmenWatch accepts up to 1,000 per request
 
 # Options (the <options> JSON object):
 #   min_confidence  only report matches at least this confident (default 0)
-#   verify_tls      false to accept Pantomath's self-signed certificate (default true)
-#   ca_file         a CA bundle that signs Pantomath's certificate, instead of turning verification off
+#   verify_tls      false to accept OmenWatch's self-signed certificate (default true)
+#   ca_file         a CA bundle that signs OmenWatch's certificate, instead of turning verification off
 #   include_expired also report expired indicators (default false)
 DEFAULT_OPTIONS = {"min_confidence": 0, "verify_tls": True, "ca_file": "", "include_expired": False}
 
@@ -130,7 +130,7 @@ def lookup(values: list[str], hook_url: str, api_key: str, options: dict, timeou
     url = hook_url.rstrip("/") + "/api/v1/lookup"
     body = json.dumps({"values": values, "include_expired": bool(options.get("include_expired"))}).encode()
     request = urllib.request.Request(url, data=body, method="POST", headers={
-        "Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": "Pantomath-Wazuh-integration",
+        "Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": "OmenWatch-Wazuh-integration",
     })
     context = None
     if url.lower().startswith("https://"):
@@ -220,7 +220,7 @@ def main(args: list[str]) -> int:
     timeout = int(args[6]) if len(args) > 6 and args[6].isdigit() else 10
     retries = int(args[7]) if len(args) > 7 and args[7].isdigit() else 3
     if not hook_url or not api_key:
-        log("set <hook_url> to Pantomath's address and <api_key> to a SIEM key", always=True)
+        log("set <hook_url> to OmenWatch's address and <api_key> to a SIEM key", always=True)
         return 2
 
     with open(alert_file) as f:
@@ -234,13 +234,13 @@ def main(args: list[str]) -> int:
     try:
         result = lookup([v for _, v in observables], hook_url, api_key, options, timeout, retries)
     except urllib.error.HTTPError as e:
-        message = {401: "Pantomath refused the key: use a SIEM key from Settings, Security"}.get(e.code, f"HTTP {e.code} {e.reason}")
+        message = {401: "OmenWatch refused the key: use a SIEM key from Settings, Security"}.get(e.code, f"HTTP {e.code} {e.reason}")
         log(message, always=True)
         send_msg(error_event(alert, e.code, message), alert.get("agent"))
         return 4
     except Exception as e:
-        log(f"Pantomath could not be reached: {e}", always=True)
-        send_msg(error_event(alert, "unreachable", f"Pantomath could not be reached: {e}"), alert.get("agent"))
+        log(f"OmenWatch could not be reached: {e}", always=True)
+        send_msg(error_event(alert, "unreachable", f"OmenWatch could not be reached: {e}"), alert.get("agent"))
         return 4
     for event in build_events(alert, observables, result, int(options.get("min_confidence") or 0)):
         send_msg(event, alert.get("agent"))

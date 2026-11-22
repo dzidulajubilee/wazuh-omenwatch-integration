@@ -1,6 +1,6 @@
 #!/bin/sh
-# Wazuh runs /var/ossec/integrations/custom-pantomath for each alert that
-# matches its <integration> block. This wrapper starts custom-pantomath.py
+# Wazuh runs /var/ossec/integrations/custom-omenwatch for each alert that
+# matches its <integration> block. This wrapper starts custom-omenwatch.py
 # with the Python that ships with the Wazuh manager, the same way Wazuh's
 # own integrations (virustotal, slack...) are started.
 WPYTHON_BIN="framework/python/bin/python3"

@@ -1,0 +1,48 @@
+#!/bin/sh
+# Refreshes Wazuh CDB lists from OmenWatch's IOC database, and restarts the
+# Wazuh manager only when a list changed (Wazuh reads CDB lists at startup).
+# Run on the Wazuh manager as root, for example every 30 minutes from cron:
+#   */30 * * * * root OMENWATCH_URL=https://omenwatch.example OMENWATCH_KEY=pms_... /usr/local/bin/omenwatch-cdb-sync
+#
+# Lists written (declare each in ossec.conf <ruleset>, see README.md, section 6):
+#   etc/lists/omenwatch-ip      IPv4 and IPv6
+#   etc/lists/omenwatch-domain  domains
+#   etc/lists/omenwatch-url     URLs
+#   etc/lists/omenwatch-hash    MD5, SHA-1, SHA-256
+# Each line is key:confidence. Optional settings:
+#   OMENWATCH_MIN_CONFIDENCE  only indicators at least this confident (default 50)
+#   OMENWATCH_CA_FILE         CA bundle for OmenWatch's certificate
+#   OMENWATCH_INSECURE=1      accept a self-signed certificate
+set -eu
+
+: "${OMENWATCH_URL:?set OMENWATCH_URL to OmenWatch's address}"
+: "${OMENWATCH_KEY:?set OMENWATCH_KEY to a SIEM key}"
+MIN_CONFIDENCE="${OMENWATCH_MIN_CONFIDENCE:-50}"
+WAZUH="${WAZUH_PATH:-/var/ossec}"
+LISTS="$WAZUH/etc/lists"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+CURL_TLS=""
+[ -n "${OMENWATCH_CA_FILE:-}" ] && CURL_TLS="--cacert $OMENWATCH_CA_FILE"
+[ "${OMENWATCH_INSECURE:-0}" = "1" ] && CURL_TLS="--insecure"
+
+changed=0
+for pair in ip:ip domain:domain url:url hash:hash; do
+    list="${pair%%:*}"
+    type="${pair#*:}"
+    out="$TMP/omenwatch-$list"
+    # shellcheck disable=SC2086
+    curl -fsS --max-time 300 $CURL_TLS -H "Authorization: Bearer $OMENWATCH_KEY" \
+        "${OMENWATCH_URL%/}/api/v1/export?format=cdb&type=$type&min_confidence=$MIN_CONFIDENCE" -o "$out"
+    if ! cmp -s "$out" "$LISTS/omenwatch-$list"; then
+        install -o wazuh -g wazuh -m 660 "$out" "$LISTS/omenwatch-$list"
+        echo "omenwatch-$list: $(wc -l < "$out") entries"
+        changed=1
+    fi
+done
+
+if [ "$changed" = 1 ]; then
+    systemctl restart wazuh-manager
+    echo "Wazuh manager restarted to load the new lists"
+fi
